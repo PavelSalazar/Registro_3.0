@@ -1,0 +1,70 @@
+//Instalar previamente nodemailer Dimas con este comando en la terminal
+// npm install nodemailer mssql
+
+const nodemailer = require('nodemailer');
+const sql = require('mssql');
+
+// Configuración de nodemailer
+const transporter = nodemailer.createTransport({
+    service: 'gmail', 
+    auth: {
+        user: 'idsunahcu@gmail.com',
+        pass: 'tucontraseña' // Con la contrasenia de aplicacion dimas
+    }
+});
+
+// Función para enviar correo
+async function enviarCorreo(destinatario, asunto, cuerpo) {
+    let mailOptions = {
+        from: 'idsunahcu@gmail.com',
+        to: destinatario,
+        subject: asunto,
+        text: cuerpo
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Correo enviado a ${destinatario}`);
+    } catch (error) {
+        console.error(`Error al enviar correo a ${destinatario}: `, error);
+    }
+}
+
+// Dimas, configura la conexion con la base de datos
+const config = {
+    user: 'tuUsuario',
+    password: 'tuContraseña',
+    server: 'tuServidor', 
+    database: 'registro',
+};
+
+
+async function enviarCorreosResultado() {
+    try {
+        // Conectar a la base de datos
+        let pool = await sql.connect(dbConfig);
+
+        // Obtener todos los estudiantes y sus notas
+        const resultado = await pool.request().query(`
+            SELECT p.correo, rt.Identidad, rt.Nota, rt.Aprobado
+            FROM #ResultadosTemporales rt
+            JOIN personas p ON rt.Identidad = p.numero_identidad
+        `);
+
+        // Enviar correo a cada estudiante con el resultado
+        resultado.recordset.forEach(async (estudiante) => {
+            const { correo, Nota, Aprobado } = estudiante;
+            const asunto = 'Resultados del Examen de Admisión';
+            const mensajeAprobado = `Felicidades, has aprobado el examen de admisión con una nota de ${Nota}.`;
+            const mensajeReprobado = `Lo sentimos, no has aprobado el examen de admisión. Tu nota es: ${Nota}.`;
+            const cuerpo = Aprobado ? mensajeAprobado : mensajeReprobado;
+
+            await enviarCorreo(correo, asunto, cuerpo);
+        });
+
+    } catch (err) {
+        console.error('Error al procesar los correos:', err);
+    }
+}
+
+enviarCorreosResultado();
